@@ -1,0 +1,254 @@
+参见： http://blog.csdn.net/zy799894671/article/details/7773523
+
+数据类型
+	NULL           值是NULL
+	INTEGER        有符号整形，根据值的大小以1,2,3,4,6,8字节存放
+	REAL           浮点型值，以8字节IEEE浮点数存放
+	TEXT           文本字符串，使用数据库编码(UTF-8,UTF-16BE,UTF-16LE)存放
+	BLOB           一个数据块，完全按照输入存放
+
+	Date和Time Datatype:
+		使用TEXT REAL INTEGER存放。
+		TEXT使用ISO8601字符串("YYYY-MM-DD HH:MM:SS.SSS")
+		REAL从格林威治时间11月24日，4174B.C中午以来的天数
+		INTERGER从1970-01-01 00：00：00UTC以来的秒数
+声明的宏：
+	#define SQLITE_OK           0   /* Successful result */
+	#define SQLITE_ERROR        1   /* SQL error or missing database */
+	#define SQLITE_INTERNAL     2   /* An internal logic error in SQLite */
+	#define SQLITE_PERM         3   /* Access permission denied */
+	#define SQLITE_ABORT        4   /* Callback routine requested an abort */
+	#define SQLITE_BUSY         5   /* The database file is locked */
+	#define SQLITE_LOCKED       6   /* A table in the database is locked */
+	#define SQLITE_NOMEM        7   /* A malloc() failed */
+	#define SQLITE_READONLY     8   /* Attempt to write a readonly database */
+	#define SQLITE_INTERRUPT    9   /* Operation terminated by sqlite_interrupt() */
+	#define SQLITE_IOERR       10   /* Some kind of disk I/O error occurred */
+	#define SQLITE_CORRUPT     11   /* The database disk image is malformed */
+	#define SQLITE_NOTFOUND    12   /* (Internal Only) Table or record not found */
+	#define SQLITE_FULL        13   /* Insertion failed because database is full */
+	#define SQLITE_CANTOPEN    14   /* Unable to open the database file */
+	#define SQLITE_PROTOCOL    15   /* Database lock protocol error */
+	#define SQLITE_EMPTY       16   /* (Internal Only) Database table is empty */
+	#define SQLITE_SCHEMA      17   /* The database schema changed */
+	#define SQLITE_TOOBIG      18   /* Too much data for one row of a table */
+	#define SQLITE_CONSTRAINT  19   /* Abort due to contraint violation */
+	#define SQLITE_MISMATCH    20   /* Data type mismatch */
+	#define SQLITE_MISUSE      21   /* Library used incorrectly */
+	#define SQLITE_NOLFS       22   /* Uses OS features not supported on host */
+	#define SQLITE_AUTH        23   /* Authorization denied */
+	#define SQLITE_ROW         100  /* sqlite_step() has another row ready */
+	#define SQLITE_DONE        101  /* sqlite_step() has finished executing */
+	
+常用函数(c api)：
+	sqlite3 db;               /* sqlite handle */
+
+
+	int sqlite3_open(
+	  const char *filename,   /* Database filename (UTF-8) */
+	  sqlite3 **ppDb          /* OUT: SQLite db handle */
+	);
+
+	
+	int sqlite3_exec(
+	  sqlite3*,                                  /* An open database */
+	  const char *sql,                           /* SQL to be evaluated */
+	  int (*callback)(void*,int,char**,char**),  /* Callback function */
+	  void *,                                    /* 1st argument to callback */
+	  char **errmsg                              /* Error msg written here */
+	);
+	各个参数的意义为：
+    sqlite3描述的是数据库句柄
+    sql 要执行的SQL语句
+    callback回调函数
+    void *回调函数的第一个参数
+    errmsg错误信息，如果没有SQL问题则值为NULL
+
+
+	int callback(void *params,
+		int column_size,
+		char **column_value,
+		char **column_name);
+	各个参数的意义为：
+        params是sqlite3_exec传入的第四个参数
+        column_size是结果字段的个数
+        column_value是返回记录的一位字符数组指针
+        column_name是结果字段的名称
+
+
+
+
+
+
+
+
+
+
+
+但最精简的API函数大概有6个：
+    sqlite3_open()
+    sqlite3_prepare()
+    sqlite3_step()
+    sqlite3_column()
+    sqlite3_finalize()
+    sqlite3_close()
+核心API也就10个（在精简API基础上增加4个）：
+    sqlite3_exec()
+    sqlite3_get_table()
+    sqlite3_reset()
+    sqlite3_bind()
+
+	
+DEMO1:
+	result = sqlite3_open( “c:\\Dcg_database.db”, &db );
+	if( result != SQLITE_OK )
+	{
+		//数据库打开失败
+		return -1;
+	}
+	//数据库操作代码
+	//…
+
+	//数据库打开成功
+	//关闭数据库
+	sqlite3_close( db );
+	return 0;
+
+DEMO2:(callback)
+	// sqlite 每查到一条记录，就调用一次这个回调
+	int LoadMyInfo( void * para, int n_column, char ** column_value, char ** column_name )
+	{
+	   //para是你在 sqlite3_exec 里传入的 void * 参数
+	   //通过para参数，你可以传入一些特殊的指针（比如类指针、结构指针），然后在这里面强制转换成对应的类型
+	   //（这里面是void*类型，必须强制转换成你的类型才可用）。然后操作这些数据
+	   //n_column是这一条记录有多少个字段 (即这条记录有多少列)
+	   //char ** column_value 是个关键值，查出来的数据都保存在这里，它实际上是个1维数组（不要以为是2维数组），
+	   //每一个元素都是一个 char * 值，是一个字段内容（用字符串来表示，以\0结尾）
+
+	   //char ** column_name 跟 column_value是对应的，表示这个字段的字段名称       
+
+		//这里，我不使用 para 参数。忽略它的存在.
+
+		int i;
+
+		printf( “记录包含 %d 个字段\n”, n_column );
+		for( i = 0 ; i < n_column; i ++ )
+		{
+			printf( “字段名:%s  ß> 字段值:%s\n”,  column_name[i], column_value[i] );
+		}
+		printf( “------------------\n“ );        
+		return 0;
+	}
+	
+	
+DEMO3:
+	//数据库操作代码
+	//创建一个测试表，表名叫 MyTable_1，有2个字段： ID 和 name。
+	//其中ID是一个自动增加的类型，以后insert时可以不去指定这个字段，它会自己从0开始增加
+	result = sqlite3_exec( db, 
+						“create table MyTable_1( ID integer primary key autoincrement, name nvarchar(32) )”, 
+						NULL, 
+						NULL, 
+						errmsg );
+	if(result != SQLITE_OK )
+	{
+		printf( “创建表失败，错误码:%d，错误原因:%s\n”, result, errmsg );
+	}
+
+	//插入一些记录
+	result = sqlite3_exec( db, “insert into MyTable_1( name ) values ( ‘走路’ )”, 0, 0, errmsg );
+	if(result != SQLITE_OK )
+	{
+		printf( “插入记录失败，错误码:%d，错误原因:%s\n”, result, errmsg );
+	}
+
+	result = sqlite3_exec( db, “insert into MyTable_1( name ) values ( ‘骑单车’ )”, 0, 0, errmsg );
+	if(result != SQLITE_OK )
+	{
+		printf( “插入记录失败，错误码:%d，错误原因:%s\n”, result, errmsg );
+	}
+
+	result = sqlite3_exec( db, “insert into MyTable_1( name ) values ( ‘坐汽车’ )”, 0, 0, errmsg );
+	if(result != SQLITE_OK )
+	{
+		printf( “插入记录失败，错误码:%d，错误原因:%s\n”, result, errmsg );
+	}
+
+	//开始查询数据库
+	result = sqlite3_exec( db, “select * from MyTable_1”, LoadMyInfo, NULL, errmsg );
+
+	//关闭数据库
+	sqlite3_close( db );
+	return 0;
+	}
+	
+DEMO4:(操作二进制)	
+	// sqlite 操作二进制数据需要用一个辅助的数据类型：sqlite3_stmt * 。
+	我假设有这么一张表：
+	create table Tbl_2( ID integer, file_content  blob )
+	首先声明
+	sqlite3_stmt * stat;
+	然后，把一个 sql 语句解析到 stat 结构里去：
+	sqlite3_prepare( db, “insert into Tbl_2( ID, file_content) values( 10, ? )”, -1, &stat, 0 );
+	上面的函数完成 sql 语句的解析。第一个参数跟前面一样，是个 sqlite3 * 类型变量，第二个参数是一个 sql 语句。
+	这个 sql 语句特别之处在于 values 里面有个 ? 号。在sqlite3_prepare函数里，?号表示一个未定的值，它的值等下才插入。
+	第三个参数我写的是-1，这个参数含义是前面 sql 语句的长度。如果小于0，sqlite会自动计算它的长度（把sql语句当成以\0结尾的字符串）。
+	第四个参数是 sqlite3_stmt 的指针的指针。解析以后的sql语句就放在这个结构里。
+	第五个参数我也不知道是干什么的。为0就可以了。
+	如果这个函数执行成功（返回值是 SQLITE_OK 且 stat 不为NULL ），那么下面就可以开始插入二进制数据。
+	sqlite3_bind_blob( stat, 1, pdata, (int)(length_of_data_in_bytes), NULL ); // pdata为数据缓冲区，length_of_data_in_bytes为数据大小，以字节为单位
+	这个函数一共有5个参数。
+	第1个参数：是前面prepare得到的 sqlite3_stmt * 类型变量。
+	第 2个参数：?号的索引。前面prepare的sql语句里有一个?号，假如有多个?号怎么插入？方法就是改变 bind_blob 函数第2个参数。这个参数我写1，表示这里插入的值要替换 stat 的第一个?号（这里的索引从1开始计数，而非从0开始）。如果你有多个?号，就写多个 bind_blob 语句，并改变它们的第2个参数就替换到不同的?号。如果有?号没有替换，sqlite为它取值null。
+	第3个参数：二进制数据起始指针。
+	第4个参数：二进制数据的长度，以字节为单位。
+	第5个参数：是个析够回调函数，告诉sqlite当把数据处理完后调用此函数来析够你的数据。这个参数我还没有使用过，因此理解也不深刻。但是一般都填NULL，需要释放的内存自己用代码来释放。
+	bind完了之后，二进制数据就进入了你的“sql语句”里了。你现在可以把它保存到数据库里：
+	int result = sqlite3_step( stat );
+	通过这个语句，stat 表示的sql语句就被写到了数据库里。
+	最后，要把 sqlite3_stmt 结构给释放：
+	sqlite3_finalize( stat ); //把刚才分配的内容析构掉
+
+	（2）读出二进制
+	下面说读二进制的步骤。
+	跟前面一样，先声明 sqlite3_stmt * 类型变量：
+	sqlite3_stmt * stat;
+	然后，把一个 sql 语句解析到 stat 结构里去：
+	sqlite3_prepare( db, “select * from Tbl_2”, -1, &stat, 0 );
+	当 prepare 成功之后（返回值是 SQLITE_OK ），开始查询数据。
+	int result = sqlite3_step( stat );
+	这一句的返回值是SQLITE_ROW 时表示成功（不是 SQLITE_OK ）。
+	你可以循环执行sqlite3_step 函数，一次step查询出一条记录。直到返回值不为 SQLITE_ROW 时表示查询结束。
+	然后开始获取第一个字段：ID 的值。ID是个整数，用下面这个语句获取它的值：
+	int id = sqlite3_column_int( stat, 0 ); //第2个参数表示获取第几个字段内容，从0开始计算，因为我的表的ID字段是第一个字段，因此这里我填0
+
+	下面开始获取 file_content 的值，因为 file_content 是二进制，因此我需要得到它的指针，还有它的长度：
+	const void * pFileContent = sqlite3_column_blob( stat, 1 );
+	int len = sqlite3_column_bytes( stat, 1 );
+	这样就得到了二进制的值。
+	把 pFileContent 的内容保存出来之后，不要忘了释放 sqlite3_stmt 结构：
+	sqlite3_finalize( stat ); //把刚才分配的内容析构掉
+
+	（3）重复使用 sqlite3_stmt 结构
+	如果你需要重复使用 sqlite3_prepare 解析好的 sqlite3_stmt 结构，需要用函数： sqlite3_reset。
+	result = sqlite3_reset(stat);
+	这样， stat 结构又成为 sqlite3_prepare 完成时的状态，你可以重新为它 bind 内容。
+	4 事务处理
+	sqlite 是支持事务处理的。如果你知道你要同步删除很多数据，不仿把它们做成一个统一的事务。
+	通常一次 sqlite3_exec 就是一次事务，如果你要删除1万条数据，sqlite就做了1万次：开始新事务->删除一条数据->提交事务->开始新事务->… 的过程。这个操作是很慢的。因为时间都花在了开始事务、提交事务上。
+	你可以把这些同类操作做成一个事务，这样如果操作错误，还能够回滚事务。
+	事务的操作没有特别的接口函数，它就是一个普通的 sql 语句而已：
+	分别如下：
+	int result; 
+	result = sqlite3_exec( db, "begin transaction", 0, 0, &zErrorMsg ); //开始一个事务
+	result = sqlite3_exec( db, "commit transaction", 0, 0, &zErrorMsg ); //提交事务
+	result = sqlite3_exec( db, "rollback transaction", 0, 0, &zErrorMsg ); //回滚事务
+	
+	
+	
+	
+	
+	
+	
+	
+	
